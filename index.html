@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>교육학 영단어 플래시카드</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* 3D Flip Card CSS */
+    .flip-container {
+      perspective: 1000px;
+    }
+    .flip-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      text-align: center;
+      transition: transform 0.4s cubic-bezier(0.4, 0.2, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+    /* 이 부분이 수정되었습니다: .flip-inner와 .flipped가 같은 요소에 적용될 때의 선택자 */
+    .flip-inner.flipped {
+      transform: rotateY(180deg);
+    }
+    .flip-front, .flip-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 1.5rem;
+      background-color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 2rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+    .flip-back {
+      transform: rotateY(180deg);
+      align-items: flex-start;
+      text-align: left;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- 원본 단어 데이터 (중복 제거, 소문자화, 발음/예문 추가 완료) ---
+    const rawVocabData = [
+      { word: "academic writing", phonetic: "/ˌækəˈdɛmɪk ˈraɪtɪŋ/", meaning: "학술적 글쓰기. 분석 및 평가 등 고차원적 사고가 요구되는 공식적인 글쓰기.", example: "Students practice academic writing to prepare for university.", exampleKr: "학생들은 대학 진학을 대비하여 학술적 글쓰기를 연습합니다." },
+      { word: "accessible", phonetic: "/əkˈsɛsəbl/", meaning: "접근 가능한. inclusive 교육에서 중요. 장애나 장벽 없이 모두가 이해하고 참여할 수 있는 환경.", example: "The school made sure all materials were accessible to every student.", exampleKr: "학교는 모든 학습 자료를 모든 학생이 이용할 수 있도록 보장했습니다." },
+      { word: "achievement", phonetic: "/əˈtʃiːvmənt/", meaning: "성취. (Progress가 과정이라면) 학습을 통해 최종적으로 달성한 결과.", example: "Winning the debate was a great achievement for her.", exampleKr: "토론 대회 우승은 그녀에게 큰 성취였습니다." },
+      { word: "active learning", phonetic: "/ˈæktɪv ˈlɜːrnɪŋ/", meaning: "능동적 학습. 학생이 직접 참여하고 행동하는 학습 (전통적 주입식 교육과 대비됨).", example: "Active learning encourages students to participate in group discussions.", exampleKr: "능동적 학습은 학생들이 그룹 토론에 참여하도록 장려합니다." },
+      { word: "adapt", phonetic: "/əˈdæpt/", meaning: "적응하다 / 맞추다. 상황이나 학생의 수준에 맞게 수업 내용을 유연하게 변형하는 것.", example: "Teachers must adapt their lessons to meet the needs of all learners.", exampleKr: "교사들은 모든 학습자의 요구를 충족시키기 위해 수업을 조정해야 합니다." },
+      { word: "additional support", phonetic: "/əˈdɪʃənl səˈpɔːrt/", meaning: "추가 지원. 도움이 더 필요한 학생에게 제공하는 보충. ('느린 학습자'를 대체하는 안전한 표현)", example: "He receives additional support in math after school.", exampleKr: "그는 방과 후에 수학에 대한 추가 지원을 받습니다." },
+      { word: "adjust", phonetic: "/əˈdʒʌst/", meaning: "조정하다. 계획된 수업이더라도 학생의 반응에 따라 현장에서 즉각적으로 수정하는 교사의 능력.", example: "She had to adjust her teaching strategy when the students seemed confused.", exampleKr: "그녀는 학생들이 혼란스러워 보일 때 교수 전략을 즉각 조정해야 했습니다." },
+      { word: "student agency", phonetic: "/ˈstjuːdənt ˈeɪdʒənsi/", meaning: "학생 주도성. 학생 스스로 학습 목표를 세우고 선택권을 가지며 전적으로 책임지는 태도.", example: "Promoting student agency helps children become independent learners.", exampleKr: "학생 주도성을 증진하는 것은 아이들이 독립적인 학습자가 되도록 돕습니다." },
+      { word: "alignment", phonetic: "/əˈlaɪnmənt/", meaning: "연계성. 학년별, 과목별 교육 과정이나 학교 목표가 어긋나지 않고 톱니바퀴처럼 맞물리는 것.", example: "There should be clear alignment between the curriculum and the assessments.", exampleKr: "교육과정과 평가 사이에는 명확한 연계성이 있어야 합니다." },
+      { word: "analysis", phonetic: "/əˈnæləsɪs/", meaning: "분석. 학습 내용을 쪼개어 구조와 의미를 파악하는 고차원적 사고 활동.", example: "The students conducted a detailed analysis of the poem.", exampleKr: "학생들은 그 시에 대해 상세한 분석을 수행했습니다." },
+      { word: "assessment for learning", phonetic: "/əˈsɛsmənt fɔːr ˈlɜːrnɪŋ/", meaning: "학습을 위한 평가. 평가 자체가 학생의 학습을 돕고 다음 수업 방향을 정하는 도구로 쓰이는 것.", example: "Assessment for learning helps teachers identify where students are struggling.", exampleKr: "학습을 위한 평가는 교사가 학생들이 어느 부분에서 어려움을 겪는지 파악하도록 돕습니다." },
+      { word: "authentic assessment", phonetic: "/ɔːˈθɛntɪk əˈsɛsmənt/", meaning: "참평가 / 실생활 평가. 지필고사가 아닌, 배운 것을 실생활 문제 해결에 적용해 보게 하는 평가.", example: "The science project served as an authentic assessment of their knowledge.", exampleKr: "그 과학 프로젝트는 그들의 지식에 대한 실생활 평가 역할을 했습니다." },
+      { word: "belonging", phonetic: "/bɪˈlɔːŋɪŋ/", meaning: "소속감. 학생이 커뮤니티에 소속감을 느끼는 상태. (사회정서학습의 핵심)", example: "A sense of belonging is crucial for a child's emotional well-being.", exampleKr: "소속감은 아이의 정서적 안녕에 매우 중요합니다." },
+      { word: "benchmark", phonetic: "/ˈbɛntʃmɑːrk/", meaning: "기준점 / 도달 목표. 특정 학년이나 시기에 학생들이 도달해야 하는 학습 기준.", example: "The reading test serves as a benchmark for third-grade students.", exampleKr: "그 읽기 시험은 3학년 학생들을 위한 도달 목표 역할을 합니다." },
+      { word: "best practices", phonetic: "/bɛst ˈpræktɪsɪz/", meaning: "모범 사례. 교육계에서 검증되고 가장 효과적이라고 인정받는 교육/교수 방법들.", example: "The school shared best practices for teaching ELL students.", exampleKr: "학교는 ELL 학생들을 가르치기 위한 모범 사례를 공유했습니다." },
+      { word: "bilingualism", phonetic: "/baɪˈlɪŋɡwəlɪzəm/", meaning: "이중 언어 사용. 두 가지 언어를 구사하는 능력. (ELL 교육에서 강력한 강점)", example: "Bilingualism provides a cognitive advantage in problem-solving.", exampleKr: "이중 언어 사용은 문제 해결에 있어 인지적 이점을 제공합니다." },
+      { word: "co-teaching", phonetic: "/koʊ ˈtiːtʃɪŋ/", meaning: "협력 교수. ELL 교사와 담임(교과) 교사가 한 교실에서 함께 수업을 계획하고 진행하는 것.", example: "Co-teaching allows both teachers to support students more effectively.", exampleKr: "협력 교수를 통해 두 교사 모두 학생들을 더 효과적으로 지원할 수 있습니다." },
+      { word: "collaboration", phonetic: "/kəˌlæbəˈreɪʃən/", meaning: "협업. 다른 교사들과 소통하며 함께 일하는 것. 국제학교 교사 필수 덕목.", example: "Successful teamwork requires clear communication and collaboration.", exampleKr: "성공적인 팀워크에는 명확한 의사소통과 협업이 필요합니다." },
+      { word: "collaborative learning", phonetic: "/kəˈlæbərətɪv ˈlɜːrnɪŋ/", meaning: "협력 학습. 학생들이 그룹 워크를 통해 서로 도우며 배우는 방식.", example: "Collaborative learning helps students develop social skills together.", exampleKr: "협력 학습은 학생들이 사회적 기술을 함께 발달시키도록 돕습니다." },
+      { word: "comprehensible input", phonetic: "/ˌkɒmprɪˈhɛnsəbl ˈɪnpʊt/", meaning: "이해 가능한 입력. ELL 학생이 문맥/시각 자료를 통해 무리 없이 이해할 수 있는 수준의 언어 자극.", example: "The teacher used pictures to provide comprehensible input for the beginners.", exampleKr: "교사는 초보자들에게 이해 가능한 입력을 제공하기 위해 사진을 사용했습니다." },
+      { word: "confidence", phonetic: "/ˈkɒnfɪdəns/", meaning: "자신감. 학생 발달의 기본. 실패를 두려워하지 않고 도전하게 만드는 힘.", example: "Giving praise for effort helps build a student's confidence.", exampleKr: "노력에 대해 칭찬하는 것은 학생의 자신감을 키우는 데 도움이 됩니다." },
+      { word: "constructive feedback", phonetic: "/kənˈstrʌktɪv ˈfiːdbæk/", meaning: "건설적 피드백. 단순 지적을 넘어 어떻게 발전할 수 있는지 구체적인 방향을 제시하는 조언.", example: "She gave constructive feedback on how to improve the essay.", exampleKr: "그녀는 에세이를 개선하는 방법에 대해 건설적인 피드백을 제공했습니다." },
+      { word: "core values", phonetic: "/kɔːr ˈvæljuːz/", meaning: "핵심 가치. 학교나 교사 개인이 가장 중요하게 생각하고 행동의 기준으로 삼는 철학.", example: "Respect and honesty are the core values of our school.", exampleKr: "존중과 정직은 우리 학교의 핵심 가치입니다." },
+      { word: "critical thinking", phonetic: "/ˈkrɪtɪkəl ˈθɪŋkɪŋ/", meaning: "비판적 사고. 정보를 무비판적으로 수용하지 않고 논리적으로 따져보는 필수 사고 능력.", example: "Debates are a great way to foster critical thinking skills.", exampleKr: "토론은 비판적 사고 능력을 기르는 훌륭한 방법입니다." },
+      { word: "culturally responsive", phonetic: "/ˈkʌltʃərəli rɪˈspɒnsɪv/", meaning: "문화적 수용성이 높은. 학생의 다양한 문화적 배경을 존중하고 수업 내용에 적극 반영하는 태도.", example: "A culturally responsive classroom celebrates the diverse backgrounds of students.", exampleKr: "문화적 수용성이 높은 교실은 학생들의 다양한 배경을 기념합니다." },
+      { word: "cultivate", phonetic: "/ˈkʌltɪveɪt/", meaning: "기르다. 흥미 등을 억지로 심어주지 않고 밭을 일구듯 자연스럽게 길러줄 때 사용.", example: "We should cultivate a love of reading in young children.", exampleKr: "우리는 어린아이들에게 독서에 대한 사랑을 길러주어야 합니다." },
+      { word: "curiosity", phonetic: "/ˌkjʊəriˈɒsɪti/", meaning: "호기심. 탐구 기반 수업을 이끄는 가장 중요한 학생의 내적 원동력.", example: "The science experiment sparked the children's curiosity.", exampleKr: "그 과학 실험은 아이들의 호기심을 자극했습니다." },
+      { word: "data-driven", phonetic: "/ˈdeɪtə ˌdrɪvən/", meaning: "데이터 기반의. 직감이 아닌 평가 점수나 관찰 기록(데이터)을 바탕으로 수업을 계획하는 태도.", example: "The school makes data-driven decisions to improve student performance.", exampleKr: "그 학교는 학생의 성취도를 향상시키기 위해 데이터 기반의 결정을 내립니다." },
+      { word: "develop", phonetic: "/dɪˈvɛləp/", meaning: "발달시키다. 학생의 능력이나 태도를 긍정적인 방향으로 성장시키는 기본적인 동사.", example: "Reading daily helps children develop their vocabulary.", exampleKr: "매일 책을 읽는 것은 아이들이 어휘력을 발달시키는 데 도움이 됩니다." },
+      { word: "differentiation", phonetic: "/ˌdɪfəˌrɛnʃiˈeɪʃən/", meaning: "수준별 지도 / 맞춤형 수업. 학생마다 수준과 요구가 다름을 인정하고 다르게 가르치는 것.", example: "Differentiation ensures that all students learn effectively.", exampleKr: "수준별 지도는 모든 학생이 효과적으로 배울 수 있도록 보장합니다." },
+      { word: "diverse needs", phonetic: "/daɪˈvɜːrs niːdz/", meaning: "다양한 학습 요구. 학생들마다 각기 다르게 가지고 있는 필요 사항들.", example: "The teacher planned activities to meet the diverse needs of her classroom.", exampleKr: "교사는 교실의 다양한 학습 요구를 충족시키기 위한 활동을 계획했습니다." },
+      { word: "empower", phonetic: "/ɪmˈpaʊər/", meaning: "힘을 실어주다. 학생 스스로 결정하고 행동할 수 있는 힘과 환경을 만들어 주는 것.", example: "We must empower students to take ownership of their learning.", exampleKr: "우리는 학생들이 자신의 학습에 주도성을 가질 수 있도록 힘을 실어주어야 합니다." },
+      { word: "enable", phonetic: "/ɪˈneɪbl/", meaning: "가능하게 하다. 교사가 학생이 특정 목표를 달성할 수 있도록 돕고 환경을 조성해 주는 것.", example: "Providing the right tools will enable students to succeed.", exampleKr: "알맞은 도구를 제공하는 것은 학생들이 성공할 수 있도록 만들어 줍니다." },
+      { word: "encourage", phonetic: "/ɪnˈkɜːrɪdʒ/", meaning: "격려하다. 시도나 노력을 지지하고 용기를 북돋워 주는 교사의 역할.", example: "Teachers should encourage students to ask questions.", exampleKr: "교사는 학생들이 질문하도록 격려해야 합니다." },
+      { word: "engagement", phonetic: "/ɪnˈɡeɪdʒmənt/", meaning: "몰입 / 참여. 단순 참여보다 전문적인 표현. 수업에 깊이 빠져드는 상태.", example: "Interactive games can significantly increase student engagement.", exampleKr: "상호작용형 게임은 학생 참여도를 크게 높일 수 있습니다." },
+      { word: "equity", phonetic: "/ˈɛkwɪti/", meaning: "형평성. 부족한 아이에게 맞춤형 지원을 제공해 공정한 출발선을 만드는 것.", example: "Equity in education means giving every student the specific support they need.", exampleKr: "교육에서 형평성이란 모든 학생에게 그들이 필요로 하는 특정한 지원을 제공하는 것입니다." },
+      { word: "evaluation", phonetic: "/ɪˌvæljuˈeɪʃən/", meaning: "평가. 기준을 가지고 가치나 결과를 판단하는 상위 사고 과정.", example: "The end-of-year evaluation measures how much the students have learned.", exampleKr: "학년말 평가는 학생들이 얼마나 배웠는지를 측정합니다." },
+      { word: "explicit instruction", phonetic: "/ɪkˈsplɪsɪt ɪnˈstrʌkʃən/", meaning: "명시적 지도. 직관적으로 알 수 없는 내용을 교사가 명확하고 직접적으로 가르치는 것.", example: "Phonics requires explicit instruction for early readers.", exampleKr: "파닉스는 초기 읽기 학습자를 위해 명시적 지도가 필요합니다." },
+      { word: "facilitate", phonetic: "/fəˈsɪlɪteɪt/", meaning: "촉진하다. 정답을 주입하는 대신 학습 과정을 부드럽게 이끌어주는 것.", example: "The teacher's role is to facilitate the discussion, not dominate it.", exampleKr: "교사의 역할은 토론을 지배하는 것이 아니라 촉진하는 것입니다." },
+      { word: "feedback", phonetic: "/ˈfiːdbæk/", meaning: "피드백. 학생의 결과물에 대해 교사나 동료가 제공하는 반응 및 조언.", example: "Immediate feedback helps students correct their mistakes right away.", exampleKr: "즉각적인 피드백은 학생들이 실수를 즉시 수정하도록 돕습니다." },
+      { word: "flipped classroom", phonetic: "/flɪpt ˈklæsruːm/", meaning: "거꾸로 교실. 집에서 영상을 미리 보고, 교실에서는 토론과 실습을 하는 방식.", example: "In a flipped classroom, students watch lectures at home.", exampleKr: "거꾸로 교실에서 학생들은 집에서 강의를 봅니다." },
+      { word: "formative assessment", phonetic: "/ˈfɔːrmətɪv əˈsɛsmənt/", meaning: "형성 평가. 수업 중간중간 퀴즈/관찰을 통해 이해도를 체크하는 지속적 평가.", example: "Exit tickets are a common type of formative assessment.", exampleKr: "퇴실 티켓은 형성 평가의 흔한 유형입니다." },
+      { word: "foster", phonetic: "/ˈfɒstər/", meaning: "촉진하다 / 조성하다. 학습이나 호기심이 자라날 수 있는 환경을 만들어주는 것.", example: "Reading aloud helps foster a love of literature in children.", exampleKr: "소리 내어 읽어주는 것은 아이들에게 문학에 대한 사랑을 조성하는 데 도움이 됩니다." },
+      { word: "global citizenship", phonetic: "/ˈɡloʊbl ˈsɪtɪzənʃɪp/", meaning: "세계 시민 의식. 다름을 존중하고 세계적인 문제에 관심을 가지는 태도.", example: "Learning about other cultures promotes global citizenship.", exampleKr: "다른 문화에 대해 배우는 것은 세계 시민 의식을 증진합니다." },
+      { word: "group work", phonetic: "/ɡruːp wɜːrk/", meaning: "모둠 활동. 학생들끼리 상호작용하며 문제를 해결하는 협력 학습 형태.", example: "Group work teaches students how to collaborate and share ideas.", exampleKr: "모둠 활동은 학생들에게 협력하고 아이디어를 공유하는 방법을 가르칩니다." },
+      { word: "growth mindset", phonetic: "/ɡroʊθ ˈmaɪndsɛt/", meaning: "성장 마인드셋. 실패해도 노력하면 능력이 발전할 수 있다고 믿는 마음가짐.", example: "A student with a growth mindset views challenges as opportunities to learn.", exampleKr: "성장 마인드셋을 가진 학생은 도전을 배움의 기회로 봅니다." },
+      { word: "guide", phonetic: "/ɡaɪd/", meaning: "안내하다. 학생이 스스로 길을 찾도록 방향을 잡아주는 역할.", example: "The teacher will guide you through the research process.", exampleKr: "교사 선생님이 연구 과정을 안내해 줄 것입니다." },
+      { word: "higher-order thinking", phonetic: "/ˈhaɪər ˈɔːrdər ˈθɪŋkɪŋ/", meaning: "고차 사고. 단순 암기를 넘어선 분석, 평가, 창조 단계의 사고력.", example: "Questions that ask 'why' encourage higher-order thinking.", exampleKr: "'왜'를 묻는 질문은 고차 사고를 장려합니다." },
+      { word: "holistic approach", phonetic: "/hoʊˈlɪstɪk əˈproʊtʃ/", meaning: "전인적 접근. 학업 성적뿐만 아니라 아이의 정서, 사회성, 신체 발달까지 고려하는 태도.", example: "The school takes a holistic approach to student well-being.", exampleKr: "그 학교는 학생의 안녕에 대해 전인적 접근을 취합니다." },
+      { word: "ignite", phonetic: "/ɪɡˈnaɪt/", meaning: "불을 붙이다. 호기심이나 열정에 강력한 동기를 부여할 때 쓰는 표현.", example: "The exciting science show ignited a passion for chemistry.", exampleKr: "흥미로운 과학 쇼는 화학에 대한 열정에 불을 붙였습니다." },
+      { word: "improve", phonetic: "/ɪmˈpruːv/", meaning: "향상시키다. 실력이나 상황을 더 나은 방향으로 끌어올리는 실용적인 동사.", example: "She practices every day to improve her writing skills.", exampleKr: "그녀는 글쓰기 실력을 향상시키기 위해 매일 연습합니다." },
+      { word: "inclusion", phonetic: "/ɪnˈkluːʒən/", meaning: "포용성. 장애나 언어 장벽이 있는 학생도 배제되지 않고 정규 교실에 녹아드는 필수 개념.", example: "Inclusion ensures that students with disabilities learn alongside their peers.", exampleKr: "포용성은 장애가 있는 학생들이 또래 친구들과 함께 배우도록 보장합니다." },
+      { word: "independence", phonetic: "/ˌɪndɪˈpɛndəns/", meaning: "자율성 / 독립성. 교사의 도움 없이 스스로 과제를 수행하고 학습할 수 있는 상태.", example: "As students grow, they develop more independence in their studies.", exampleKr: "학생들은 성장함에 따라 학업에서 더 많은 자율성을 기릅니다." },
+      { word: "individual needs", phonetic: "/ˌɪndɪˈvɪdʒuəl niːdz/", meaning: "개별 요구. 학생 개개인이 가진 고유한 특성과 필요.", example: "The curriculum is designed to meet the individual needs of each learner.", exampleKr: "그 교육과정은 각 학습자의 개별 요구를 충족하도록 설계되었습니다." },
+      { word: "inquiry-based learning", phonetic: "/ˈɪnkwəri ˌbeɪst ˈlɜːrnɪŋ/", meaning: "탐구 기반 학습. 답을 주는 대신 질문을 던져 스스로 답을 찾게 하는 핵심 교육법.", example: "Inquiry-based learning starts with a driving question from the students.", exampleKr: "탐구 기반 학습은 학생들의 핵심 질문에서 시작됩니다." },
+      { word: "interactive", phonetic: "/ˌɪntərˈæktɪv/", meaning: "상호작용의. 교사와 학생 간에 끊임없이 소통이 일어나는 수업 방식.", example: "The interactive whiteboard makes math lessons much more fun.", exampleKr: "상호작용형 화이트보드는 수학 수업을 훨씬 더 재미있게 만듭니다." },
+      { word: "intrinsic motivation", phonetic: "/ɪnˈtrɪnzɪk ˌmoʊtɪˈveɪʃən/", meaning: "내적 동기. 외부 보상이 아닌 학생 스스로의 흥미와 즐거움에서 우러나오는 동기.", example: "Students with intrinsic motivation learn because they genuinely enjoy the subject.", exampleKr: "내적 동기를 가진 학생들은 과목 자체를 진심으로 즐기기 때문에 학습합니다." },
+      { word: "learner-centered", phonetic: "/ˈlɜːrnər ˈsɛntərd/", meaning: "학습자 중심의. 학습자의 요구가 우선시되는 수업 (Student-centered와 동일).", example: "A learner-centered approach gives students more control over their education.", exampleKr: "학습자 중심의 접근 방식은 학생들에게 교육에 대한 더 많은 통제권을 줍니다." },
+      { word: "learning differences", phonetic: "/ˈlɜːrnɪŋ ˈdɪfərənsɪz/", meaning: "학습 차이. 배우는 방식이 다름을 인정하는 안전하고 포용적인 표현.", example: "We accommodate learning differences by providing multiple ways to complete an assignment.", exampleKr: "우리는 과제를 완료하는 다양한 방법을 제공하여 학습 차이를 수용합니다." },
+      { word: "learning outcomes", phonetic: "/ˈlɜːrnɪŋ ˈaʊtkʌmz/", meaning: "학습 결과/목표. 수업 후 학생이 도달하거나 성취해야 할 공식적인 교육 결과물.", example: "The teacher clearly stated the learning outcomes at the beginning of the lesson.", exampleKr: "교사는 수업 시작 시에 학습 목표를 명확하게 밝혔습니다." },
+      { word: "lifelong learning", phonetic: "/ˈlaɪflɒŋ ˈlɜːrnɪŋ/", meaning: "평생 학습. 교실을 넘어 평생 스스로 배우고 탐구하려는 지속적인 태도.", example: "Instilling a passion for reading promotes lifelong learning.", exampleKr: "독서에 대한 열정을 심어주는 것은 평생 학습을 촉진합니다." },
+      { word: "mastery", phonetic: "/ˈmæstəri/", meaning: "숙달. 개념이나 기술을 완벽하게 자기 것으로 만든 최고 수준의 목표 도달 상태.", example: "He practiced the piano for hours to achieve mastery of the piece.", exampleKr: "그는 그 곡의 숙달을 달성하기 위해 몇 시간 동안 피아노를 연습했습니다." },
+      { word: "metacognition", phonetic: "/ˌmɛtəkɒɡˈnɪʃən/", meaning: "메타인지. 자신이 아는 것과 모르는 것을 객관적으로 파악하고 통제하는 인지 능력.", example: "Asking students to reflect on how they solved a problem builds metacognition.", exampleKr: "학생들에게 문제를 어떻게 해결했는지 성찰하게 하는 것은 메타인지를 기릅니다." },
+      { word: "modelling", phonetic: "/ˈmɒdəlɪŋ/", meaning: "시범 보이다. 우수 사례나 교사가 기대되는 행동을 직접 보여주는 행위.", example: "Modelling a science experiment before the students try it reduces mistakes.", exampleKr: "학생들이 시도하기 전에 과학 실험을 시범 보여주는 것은 실수를 줄여줍니다." },
+      { word: "monitor", phonetic: "/ˈmɒnɪtər/", meaning: "관찰하다. 학생의 행동이나 학습 진척 상황을 지속적으로 지켜보고 확인하는 것.", example: "The teacher walks around to monitor the students during group work.", exampleKr: "교사는 모둠 활동 중에 학생들을 관찰하기 위해 돌아다닙니다." },
+      { word: "monitor progress", phonetic: "/ˈmɒnɪtər ˈprɒɡrɛs/", meaning: "학습 진척도 추적. 학생의 성장과 이해도를 일상적으로 꾸준히 점검하는 것.", example: "Quizzes help the teacher monitor progress throughout the semester.", exampleKr: "퀴즈는 교사가 학기 내내 학습 진척도를 추적하는 데 도움을 줍니다." },
+      { word: "ongoing assessment", phonetic: "/ˈɒnˌɡoʊɪŋ əˈsɛsmənt/", meaning: "지속적 평가. 시험 한 번으로 끝내지 않고 수업 전반에 걸쳐 계속 이루어지는 평가.", example: "Ongoing assessment provides a clear picture of a student's daily growth.", exampleKr: "지속적 평가는 학생의 일상적인 성장에 대한 명확한 그림을 제공합니다." },
+      { word: "ownership of learning", phonetic: "/ˈoʊnərʃɪp əv ˈlɜːrnɪŋ/", meaning: "학습 주도성. 자신의 학습에 주인의식을 가지고 전적인 책임을 지는 태도.", example: "Letting students choose their topics encourages ownership of learning.", exampleKr: "학생들이 주제를 선택하게 하는 것은 학습 주도성을 장려합니다." },
+      { word: "peer assessment", phonetic: "/pɪər əˈsɛsmənt/", meaning: "동료 평가. 협력 학습 과정에서 친구의 결과물을 평가하며 비판적 사고를 기르는 활동.", example: "Peer assessment allows students to learn from each other's strengths.", exampleKr: "동료 평가는 학생들이 서로의 장점으로부터 배우게 해줍니다." },
+      { word: "professional learning community", phonetic: "/prəˈfɛʃənl ˈlɜːrnɪŋ kəˈmjuːnɪti/", meaning: "교사 학습 공동체(PLC). 교사들끼리 모여 수업 방식을 연구하고 아이디어를 나누는 모임.", example: "The teachers meet every Tuesday in their professional learning community.", exampleKr: "교사들은 매주 화요일 교사 학습 공동체 모임을 갖습니다." },
+      { word: "problem-solving", phonetic: "/ˈprɒbləm ˌsɒlvɪŋ/", meaning: "문제 해결. 주어진 문제를 파악하고 합리적인 해결책을 찾아내는 기본적 사고 능력.", example: "Math puzzles are excellent tools for developing problem-solving skills.", exampleKr: "수학 퍼즐은 문제 해결 능력을 발달시키는 훌륭한 도구입니다." },
+      { word: "professional development", phonetic: "/prəˈfɛʃənl dɪˈvɛləpmənt/", meaning: "교사 연수 / 전문성 개발 (PD). 교사가 스스로의 역량을 꾸준히 키워나가는 과정.", example: "The workshop counts toward our required professional development hours.", exampleKr: "그 워크숍은 필수 교사 연수 시간에 포함됩니다." },
+      { word: "progress", phonetic: "/ˈprɒɡrɛs/", meaning: "발전 / 진전. 결과 이전에 학생이 학습 과정에서 보여주는 긍정적인 향상.", example: "The student has made significant progress in reading fluency this year.", exampleKr: "그 학생은 올해 읽기 유창성에서 상당한 발전을 이루었습니다." },
+      { word: "pull-out / push-in", phonetic: "/pʊl-aʊt / pʊʃ-ɪn/", meaning: "풀아웃/푸시인. 특수 및 ELL 지원 방식. (교실 밖으로 빼서 따로 지도 vs 정규 교실에 들어가 보조)", example: "The school offers both pull-out sessions and push-in support.", exampleKr: "학교는 풀아웃 수업과 푸시인 지원을 모두 제공합니다." },
+      { word: "rapport", phonetic: "/ræˈpɔːr/", meaning: "라포 / 친밀감. 교사-학생 등 사이에 형성된 상호 신뢰와 친밀한 관계.", example: "Building a positive rapport with students is the first step to a successful year.", exampleKr: "학생들과 긍정적인 라포를 형성하는 것은 성공적인 학년의 첫걸음입니다." },
+      { word: "realia", phonetic: "/rɪˈeɪliə/", meaning: "실물 교재. 단어를 가르칠 때 직접 만지고 볼 수 있는 실제 사물을 활용하는 것.", example: "Bringing real fruit to class as realia helps learners remember vocabulary.", exampleKr: "실물 교재로 진짜 과일을 교실에 가져오는 것은 어휘 암기에 도움이 됩니다." },
+      { word: "reasoning", phonetic: "/ˈriːzənɪŋ/", meaning: "추론. 논리적 사고를 바탕으로 근거를 들어 합리적인 결론을 도출하는 과정.", example: "He explained the reasoning behind his answer to the math problem.", exampleKr: "그는 수학 문제에 대한 자신의 답의 근거(추론 과정)를 설명했습니다." },
+      { word: "reflective practice", phonetic: "/rɪˈflɛktɪv ˈpræktɪs/", meaning: "성찰적 실천. 학생이 학습을 돌아보거나, 교사가 수업을 객관적으로 돌아보고 개선하는 행위.", example: "Keeping a teaching journal is a great way to engage in reflective practice.", exampleKr: "수업 일지를 쓰는 것은 성찰적 실천에 참여하는 훌륭한 방법입니다." },
+      { word: "resilience", phonetic: "/rɪˈzɪliəns/", meaning: "회복 탄력성 / 회복력. 어려움에 부딪혀도 좌절하지 않고 일어서는 마음의 근력.", example: "Teaching children how to cope with failure builds resilience.", exampleKr: "아이들에게 실패에 대처하는 방법을 가르치는 것은 회복 탄력성을 기릅니다." },
+      { word: "respond to students' needs", phonetic: "/rɪˈspɒnd tə ˈstjuːdənts niːdz/", meaning: "학생 요구에 반응하다. 학생의 질문, 감정 변화에 교사가 즉각적으로 대처하는 태도.", example: "A good teacher must flexibly respond to students' needs during a lesson.", exampleKr: "좋은 교사는 수업 중 학생의 요구에 유연하게 반응해야 합니다." },
+      { word: "rubric", phonetic: "/ˈruːbrɪk/", meaning: "평가 기준표. 무엇을 어떻게 평가할 것인지 미리 투명하게 제시하는 구체적인 채점 가이드.", example: "Check the rubric before submitting your essay to ensure you meet requirements.", exampleKr: "에세이를 제출하기 전에 평가 기준표를 확인하여 요구 사항을 충족했는지 확인하세요." },
+      { word: "scaffolding", phonetic: "/ˈskæfoʊldɪŋ/", meaning: "발판 제공. 학생이 스스로 할 수 있을 때까지 교사가 임시 가이드나 힌트를 지원해 주는 것.", example: "The teacher used sentence starters as scaffolding for the writing assignment.", exampleKr: "교사는 글쓰기 과제의 발판으로 문장 시작 부분을 제공했습니다." },
+      { word: "self-assessment", phonetic: "/ˌsɛlf əˈsɛsmənt/", meaning: "자기 평가. 자신의 학습 결과를 스스로 평가하게 하여 메타인지를 높이는 활동.", example: "Using a checklist for self-assessment helps students become more independent.", exampleKr: "자기 평가를 위해 체크리스트를 사용하는 것은 학생들이 더 자율적이 되도록 돕습니다." },
+      { word: "self-awareness", phonetic: "/ˌsɛlf əˈwɛərnəs/", meaning: "자기 인식. 자신의 장단점이나 감정 상태를 명확히 아는 능력.", example: "Recognizing when you need a break is a sign of good self-awareness.", exampleKr: "휴식이 필요할 때를 아는 것은 훌륭한 자기 인식의 표시입니다." },
+      { word: "self-efficacy", phonetic: "/ˌsɛlf ˈɛfɪkəsi/", meaning: "자기 효능감. 자신이 특정 과제를 성공적으로 해낼 수 있다고 믿는 내면의 힘.", example: "Celebrating small wins builds a student's self-efficacy.", exampleKr: "작은 성공을 축하하는 것은 학생의 자기 효능감을 높여줍니다." },
+      { word: "stakeholders", phonetic: "/ˈsteɪkhoʊldərz/", meaning: "이해관계자. 학생, 학부모, 교직원 등 학교 교육 커뮤니티에 속한 모든 사람.", example: "The school principal communicated the new policy to all stakeholders.", exampleKr: "교장 선생님은 새로운 정책을 모든 이해관계자에게 전달했습니다." },
+      { word: "stimulate", phonetic: "/ˈstɪmjʊleɪt/", meaning: "자극하다. 학생의 생각이나 동기를 유발하여 활발한 참여를 이끄는 것.", example: "Visual aids can stimulate students' interest in the topic.", exampleKr: "시각 자료는 주제에 대한 학생들의 흥미를 자극할 수 있습니다." },
+      { word: "student engagement", phonetic: "/ˈstjuːdənt ɪnˈɡeɪdʒmənt/", meaning: "학생 참여도. 학생이 수업에 집중하고 적극적으로 반응하는 정도.", example: "High student engagement often leads to better academic results.", exampleKr: "높은 학생 참여도는 흔히 더 나은 학업 결과로 이어집니다." },
+      { word: "student-centered", phonetic: "/ˈstjuːdənt ˈsɛntərd/", meaning: "학생 중심. 교사 일방이 아닌 학생 주도적 활동이 중심이 되는 필수 개념.", example: "A student-centered classroom focuses on group activities and problem-solving.", exampleKr: "학생 중심 교실은 그룹 활동과 문제 해결에 중점을 둡니다." },
+      { word: "summative assessment", phonetic: "/ˈsʌmətɪv əˈsɛsmənt/", meaning: "총괄 평가. 학기 말이나 단원 끝에 성취도를 종합적으로 확인하는 시험.", example: "The final exam is a typical example of a summative assessment.", exampleKr: "기말고사는 총괄 평가의 전형적인 예입니다." },
+      { word: "support", phonetic: "/səˈpɔːrt/", meaning: "지원하다. 물리적/심리적으로 학생의 학습과 성장을 돕는 교사의 핵심 역할.", example: "The counselor is always there to support students with their emotional well-being.", exampleKr: "상담 교사는 항상 학생들의 정서적 안녕을 지원하기 위해 그곳에 있습니다." },
+      { word: "supportive environment", phonetic: "/səˈpɔːrtɪv ɪnˈvaɪrənmənt/", meaning: "지원적 환경. 실수나 실패를 두려워하지 않고 마음 편히 배울 수 있는 안전한 분위기.", example: "A supportive environment encourages children to share their ideas freely.", exampleKr: "지원적 환경은 아이들이 자신의 아이디어를 자유롭게 공유하도록 격려합니다." },
+      { word: "translanguaging", phonetic: "/trænzˈlæŋɡwɪdʒɪŋ/", meaning: "언어 횡단. 다국어 학생이 영어 습득을 위해 자신의 모국어를 연결 고리로 자연스럽게 쓰는 것.", example: "Translanguaging allows ELL students to use all linguistic resources to understand concepts.", exampleKr: "언어 횡단은 다국어 학생들이 개념을 이해하기 위해 모든 언어 자원을 사용할 수 있게 해줍니다." },
+      { word: "well-being", phonetic: "/wɛl-ˈbiːɪŋ/", meaning: "정서적 안녕. 학생의 심리적, 신체적, 정서적 건강 상태.", example: "Schools are prioritizing student well-being by offering mental health programs.", exampleKr: "학교들은 정신 건강 프로그램을 제공하여 학생의 정서적 안녕을 최우선으로 하고 있습니다." }
+    ];
+
+    // 배열 셔플 함수 (모르는 단어 재학습 시 랜덤 섞기용)
+    const shuffleArray = (array) => {
+      let shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+
+    function App() {
+      // States
+      const [currentDeck, setCurrentDeck] = useState(rawVocabData);
+      const [currentIndex, setCurrentIndex] = useState(0);
+      const [isFlipped, setIsFlipped] = useState(false);
+      
+      // 현재 라운드에서 사용자가 기록한 O, X 상태 ('O' | 'X' | null)
+      const [cardStatuses, setCardStatuses] = useState(Array(rawVocabData.length).fill(null));
+      const [isFinished, setIsFinished] = useState(false);
+
+      // --- 이벤트 핸들러 ---
+      
+      const handleFlip = () => setIsFlipped(!isFlipped);
+
+      // 이전 카드로 (방향 스포일러 방지를 위해 카드를 즉시 앞면으로 돌림)
+      const handlePrev = () => {
+        if (currentIndex > 0) {
+          setIsFlipped(false);
+          setCurrentIndex(currentIndex - 1);
+        }
+      };
+
+      // O (알아요) 또는 X (몰라요) 처리
+      const handleAnswer = (answer) => {
+        // 기록 업데이트
+        const newStatuses = [...cardStatuses];
+        newStatuses[currentIndex] = answer;
+        setCardStatuses(newStatuses);
+
+        // 다음 카드로 넘어가거나 라운드 종료 처리
+        if (currentIndex < currentDeck.length - 1) {
+          setIsFlipped(false); // 다음 카드로 넘어가기 전 앞면으로 강제 초기화 (스포일러 방지)
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          // 마지막 카드에 대답한 경우, 모르는 단어(X) 수집
+          const unknownWords = currentDeck.filter((_, idx) => newStatuses[idx] === 'X');
+          
+          if (unknownWords.length > 0) {
+            // 모르는 단어가 있다면 순서를 랜덤으로 섞어서 새 라운드 시작
+            setCurrentDeck(shuffleArray(unknownWords));
+            setCurrentIndex(0);
+            setCardStatuses(Array(unknownWords.length).fill(null));
+            setIsFlipped(false);
+          } else {
+            // 모두 알면(O) 최종 완료
+            setIsFinished(true);
+          }
+        }
+      };
+
+      // 전체 처음부터 다시 시작
+      const handleRestart = () => {
+        setCurrentDeck(rawVocabData);
+        setCurrentIndex(0);
+        setCardStatuses(Array(rawVocabData.length).fill(null));
+        setIsFlipped(false);
+        setIsFinished(false);
+      };
+
+      // 렌더링: 모든 단어를 마쳤을 때
+      if (isFinished) {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+            <h1 className="text-4xl font-bold text-slate-700 mb-4">완벽합니다! 🎉</h1>
+            <p className="text-lg text-slate-500 mb-8">선택하신 모든 단어를 학습했습니다.</p>
+            <button 
+              onClick={handleRestart}
+              className="px-8 py-4 bg-slate-800 text-white rounded-xl shadow-lg hover:bg-slate-700 transition font-bold text-lg"
+            >
+              처음부터 다시 학습하기
+            </button>
+          </div>
+        );
+      }
+
+      const currentWord = currentDeck[currentIndex];
+
+      return (
+        <div className="min-h-screen flex flex-col items-center py-10 px-4 sm:px-6">
+          
+          {/* Header & Progress */}
+          <div className="w-full max-w-2xl text-center mb-8">
+            <h1 className="text-2xl font-bold text-slate-700 mb-2">🎓 교육학 필수 영단어</h1>
+            <p className="text-sm text-slate-500 font-medium">
+              학습 중인 세트: {currentIndex + 1} / {currentDeck.length}
+            </p>
+            
+            {/* Progress Bar */}
+            <div className="w-full bg-slate-200 h-2 rounded-full mt-4 overflow-hidden">
+              <div 
+                className="bg-slate-500 h-full transition-all duration-300 ease-out"
+                style={{ width: `${((currentIndex) / currentDeck.length) * 100}%` }}
+              ></div>
+            </div>
+          </div>
+
+          {/* Flashcard Area */}
+          <div className="w-full max-w-2xl h-[420px] mb-8 cursor-pointer flip-container" onClick={handleFlip}>
+            <div className={`flip-inner ${isFlipped ? 'flipped' : ''}`}>
+              
+              {/* Front Side */}
+              <div className="flip-front items-center text-center">
+                <h2 className="text-5xl sm:text-6xl font-extrabold text-slate-800 mb-6 tracking-tight">
+                  {currentWord.word}
+                </h2>
+                <p className="text-2xl text-slate-400 font-medium">
+                  {currentWord.phonetic}
+                </p>
+                <div className="absolute bottom-6 text-slate-300 text-sm font-semibold">
+                  클릭해서 뒤집기
+                </div>
+              </div>
+
+              {/* Back Side */}
+              <div className="flip-back flex flex-col p-6 sm:p-10 justify-between">
+                <div>
+                  <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 leading-snug">
+                    {currentWord.meaning}
+                  </h3>
+                  <div className="w-full h-px bg-slate-100 my-5"></div>
+                  <div className="space-y-3">
+                    <p className="text-lg text-slate-600 font-medium leading-relaxed">
+                      "{currentWord.example}"
+                    </p>
+                    <p className="text-base text-slate-400 leading-relaxed">
+                      {currentWord.exampleKr}
+                    </p>
+                  </div>
+                </div>
+                <div className="w-full text-center mt-4 text-slate-300 text-sm font-semibold">
+                  클릭해서 돌아가기
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="w-full max-w-2xl flex items-center justify-between">
+            {/* Prev Button */}
+            <button 
+              onClick={handlePrev}
+              disabled={currentIndex === 0}
+              className="px-5 py-3 text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition font-bold"
+            >
+              ← 이전
+            </button>
+
+            {/* O / X Buttons */}
+            <div className="flex gap-4">
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleAnswer('X'); }}
+                className="w-16 h-16 sm:w-20 sm:h-20 bg-white border-2 border-slate-200 text-slate-400 rounded-2xl flex items-center justify-center hover:border-red-400 hover:text-red-500 transition shadow-sm"
+                title="모르겠어요 (다시 연습)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+              
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleAnswer('O'); }}
+                className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-800 text-white rounded-2xl flex items-center justify-center hover:bg-slate-700 transition shadow-md"
+                title="알아요 (다음으로)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle></svg>
+              </button>
+            </div>
+            
+            {/* Empty space to balance flex layout against "Prev" button */}
+            <div className="w-20 sm:w-24"></div>
+          </div>
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
